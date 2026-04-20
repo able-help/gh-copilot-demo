@@ -10,8 +10,8 @@ public class AlbumControllerTests
     private static AlbumController.AlbumRequest ValidRequest() =>
         new(
             $"Valid Album {Guid.NewGuid()}",
-            new AlbumController.ArtistRequest("Valid Artist", new DateOnly(1990, 1, 1), "Valid City"),
-            2030,
+            2,
+            new DateOnly(2030, 7, 1),
             19.99,
             "https://example.com/cover.png");
 
@@ -72,8 +72,8 @@ public class AlbumControllerTests
         var controller = new AlbumController();
         var request = new AlbumController.AlbumRequest(
             $"Test Album {Guid.NewGuid()}",
-            new AlbumController.ArtistRequest("Test Artist", new DateOnly(1990, 1, 1), "Test City"),
-            2030,
+            2,
+            new DateOnly(2030, 7, 1),
             19.99,
             "https://example.com/cover.png");
 
@@ -87,6 +87,8 @@ public class AlbumControllerTests
         var okResult = Assert.IsType<OkObjectResult>(getResult);
         var retrievedAlbum = Assert.IsType<Album>(okResult.Value);
         Assert.Equal(request.Title, retrievedAlbum.Title);
+        Assert.Equal(request.Artist_id, retrievedAlbum.Artist_id);
+        Assert.Equal(request.Release_date?.Year, retrievedAlbum.Year);
 
         controller.Delete(createdAlbum.Id);
     }
@@ -97,8 +99,8 @@ public class AlbumControllerTests
         var controller = new AlbumController();
         var request = new AlbumController.AlbumRequest(
             "   ",
-            new AlbumController.ArtistRequest("Test Artist", new DateOnly(1990, 1, 1), "Test City"),
-            2030,
+            2,
+            new DateOnly(2030, 7, 1),
             19.99,
             "https://example.com/cover.png");
 
@@ -109,10 +111,8 @@ public class AlbumControllerTests
     }
 
     [Theory]
-    [InlineData("artist-name", "Artist.Name is required.")]
-    [InlineData("artist-birthdate", "Artist.Birthdate is required.")]
-    [InlineData("artist-birthplace", "Artist.BirthPlace is required.")]
-    [InlineData("year", "Year must be greater than 0.")]
+    [InlineData("artist-id", "Artist_id must be greater than 0.")]
+    [InlineData("missing-artist", "Artist_id must reference an existing artist.")]
     [InlineData("price", "Price cannot be negative.")]
     [InlineData("image", "Image_url is required.")]
     public void Create_WhenRequestIsInvalid_ReturnsBadRequestWithExpectedMessage(string invalidField, string expectedMessage)
@@ -120,10 +120,8 @@ public class AlbumControllerTests
         var controller = new AlbumController();
         var request = invalidField switch
         {
-            "artist-name" => ValidRequest() with { Artist = new AlbumController.ArtistRequest("   ", new DateOnly(1990, 1, 1), "City") },
-            "artist-birthdate" => ValidRequest() with { Artist = new AlbumController.ArtistRequest("Artist", default, "City") },
-            "artist-birthplace" => ValidRequest() with { Artist = new AlbumController.ArtistRequest("Artist", new DateOnly(1990, 1, 1), "   ") },
-            "year" => ValidRequest() with { Year = 0 },
+            "artist-id" => ValidRequest() with { Artist_id = 0 },
+            "missing-artist" => ValidRequest() with { Artist_id = int.MaxValue },
             "price" => ValidRequest() with { Price = -0.01 },
             "image" => ValidRequest() with { Image_url = "   " },
             _ => throw new ArgumentOutOfRangeException(nameof(invalidField), invalidField, null)
@@ -136,25 +134,13 @@ public class AlbumControllerTests
     }
 
     [Fact]
-    public void Create_WhenArtistIsNull_ReturnsBadRequest()
-    {
-        var controller = new AlbumController();
-        var request = ValidRequest() with { Artist = null! };
-
-        var result = controller.Create(request);
-
-        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Equal("Artist is required.", badRequest.Value);
-    }
-
-    [Fact]
     public void Update_WhenAlbumExists_UpdatesAlbum()
     {
         var controller = new AlbumController();
         var createRequest = new AlbumController.AlbumRequest(
             $"Album To Update {Guid.NewGuid()}",
-            new AlbumController.ArtistRequest("Original Artist", new DateOnly(1992, 2, 2), "Original City"),
-            2031,
+            2,
+            new DateOnly(2031, 2, 2),
             11.50,
             "https://example.com/original.png");
 
@@ -163,8 +149,8 @@ public class AlbumControllerTests
 
         var updateRequest = new AlbumController.AlbumRequest(
             "Updated Album",
-            new AlbumController.ArtistRequest("Updated Artist", new DateOnly(1993, 3, 3), "Updated City"),
-            2032,
+            3,
+            new DateOnly(2032, 3, 3),
             12.75,
             "https://example.com/updated.png");
 
@@ -173,7 +159,8 @@ public class AlbumControllerTests
         var okResult = Assert.IsType<OkObjectResult>(updateResult);
         var updatedAlbum = Assert.IsType<Album>(okResult.Value);
         Assert.Equal(updateRequest.Title, updatedAlbum.Title);
-        Assert.Equal(updateRequest.Year, updatedAlbum.Year);
+        Assert.Equal(updateRequest.Release_date?.Year, updatedAlbum.Year);
+        Assert.Equal("KEDA Club", updatedAlbum.Artist.Name);
 
         controller.Delete(createdAlbum.Id);
     }
@@ -184,8 +171,8 @@ public class AlbumControllerTests
         var controller = new AlbumController();
         var request = new AlbumController.AlbumRequest(
             "Non Existing Album",
-            new AlbumController.ArtistRequest("Ghost Artist", new DateOnly(1991, 5, 5), "Nowhere"),
-            2034,
+            2,
+            new DateOnly(2034, 5, 5),
             10.00,
             "https://example.com/non-existing.png");
 
@@ -195,10 +182,8 @@ public class AlbumControllerTests
     }
 
     [Theory]
-    [InlineData("artist-name", "Artist.Name is required.")]
-    [InlineData("artist-birthdate", "Artist.Birthdate is required.")]
-    [InlineData("artist-birthplace", "Artist.BirthPlace is required.")]
-    [InlineData("year", "Year must be greater than 0.")]
+    [InlineData("artist-id", "Artist_id must be greater than 0.")]
+    [InlineData("missing-artist", "Artist_id must reference an existing artist.")]
     [InlineData("price", "Price cannot be negative.")]
     [InlineData("image", "Image_url is required.")]
     public void Update_WhenRequestIsInvalid_ReturnsBadRequestWithExpectedMessage(string invalidField, string expectedMessage)
@@ -206,10 +191,8 @@ public class AlbumControllerTests
         var controller = new AlbumController();
         var request = invalidField switch
         {
-            "artist-name" => ValidRequest() with { Artist = new AlbumController.ArtistRequest("   ", new DateOnly(1990, 1, 1), "City") },
-            "artist-birthdate" => ValidRequest() with { Artist = new AlbumController.ArtistRequest("Artist", default, "City") },
-            "artist-birthplace" => ValidRequest() with { Artist = new AlbumController.ArtistRequest("Artist", new DateOnly(1990, 1, 1), "   ") },
-            "year" => ValidRequest() with { Year = 0 },
+            "artist-id" => ValidRequest() with { Artist_id = 0 },
+            "missing-artist" => ValidRequest() with { Artist_id = int.MaxValue },
             "price" => ValidRequest() with { Price = -0.01 },
             "image" => ValidRequest() with { Image_url = "   " },
             _ => throw new ArgumentOutOfRangeException(nameof(invalidField), invalidField, null)
@@ -222,25 +205,13 @@ public class AlbumControllerTests
     }
 
     [Fact]
-    public void Update_WhenArtistIsNull_ReturnsBadRequest()
-    {
-        var controller = new AlbumController();
-        var request = ValidRequest() with { Artist = null! };
-
-        var result = controller.Update(1, request);
-
-        var badRequest = Assert.IsType<BadRequestObjectResult>(result);
-        Assert.Equal("Artist is required.", badRequest.Value);
-    }
-
-    [Fact]
     public void Delete_WhenAlbumExists_ReturnsNoContentAndRemovesAlbum()
     {
         var controller = new AlbumController();
         var createRequest = new AlbumController.AlbumRequest(
             $"Album To Delete {Guid.NewGuid()}",
-            new AlbumController.ArtistRequest("Delete Artist", new DateOnly(1994, 4, 4), "Delete City"),
-            2033,
+            2,
+            new DateOnly(2033, 4, 4),
             9.99,
             "https://example.com/delete.png");
 

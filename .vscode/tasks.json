@@ -88,6 +88,16 @@
         "problemMatcher": []
     },
     {
+        "label": "shell: npm: smoke - album-viewer",
+        "type": "shell",
+        "command": "npm",
+        "args": ["run", "smoke"],
+        "options": {
+            "cwd": "${workspaceFolder}/album-viewer"
+        },
+        "problemMatcher": []
+    },
+    {
         "label": "shell: npm: dev - album-api-v2",
         "type": "shell",
         "command": "npm",

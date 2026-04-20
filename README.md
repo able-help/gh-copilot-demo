@@ -18,7 +18,12 @@ The solution is composed of a frontend plus backend services: the .NET album API
 
 ### Album API V2 (`album-api-v2`)
 
-The [`album-api-v2`](./album-api-v2) is the primary local backend. It is a Node.js + TypeScript rewrite of the albums API, keeps the album collection in memory, starts on `http://localhost:3000` by default, and preserves the routes used by the Vue frontend: `GET /albums`, `GET /albums/{id}`, `POST /albums`, `PUT /albums/{id}`, `DELETE /albums/{id}`, plus `GET /albums/search` and `GET /albums/sorted`.
+The [`album-api-v2`](./album-api-v2) is the primary local backend. It is a Node.js + TypeScript rewrite of the albums API, keeps the catalog in memory, starts on `http://localhost:3000` by default, and serves a normalized contract:
+
+- Albums are written with `artist_id`, `release_date`, `price`, and `image_url`
+- Albums are read back with joined `artist` details plus a derived `year`
+- Artists are managed through `GET /artists`, `GET /artists/{id}`, `POST /artists`, `PUT /artists/{id}`, and `DELETE /artists/{id}`
+- Albums remain available through `GET /albums`, `GET /albums/{id}`, `POST /albums`, `PUT /albums/{id}`, `DELETE /albums/{id}`, plus `GET /albums/search` and `GET /albums/sorted`
 
 ### Legacy Album API (`album-api`)
 
@@ -27,6 +32,15 @@ The [`album-api`](./album-api) is the original .NET 8 implementation kept in the
 ### Album Viewer (`album-viewer`)
 
 The [`album-viewer`](./album-viewer) is a modern Vue.js 3 application built with TypeScript through which the albums retrieved by the API are surfaced. The application uses the Vue 3 Composition API with full TypeScript support for enhanced developer experience and type safety. In order to display the repository of albums, the album viewer contacts the backend album API.
+
+The current UI includes:
+
+- album browsing with joined artist metadata
+- cart persistence and locale persistence
+- album CRUD from the Catalog Studio panel
+- artist browsing and filtering from the Artists panel
+- artist CRUD from the Artist Studio panel
+- richer album preview details including release date, derived year, and creation timestamps
 
 ## Getting Started
 
@@ -98,6 +112,17 @@ node scripts/smoke-album-app.mjs
 ```
 
 This checks that the Vue dev server is serving HTML and that `http://localhost:3001/albums` proxies through to the backend successfully.
+
+#### Smoke test rendered UI with Playwright
+
+To verify the rendered album cards in a real browser context, run:
+
+```bash
+cd album-viewer
+npm run smoke
+```
+
+This launches `album-api-v2` on port `3000`, the Vue dev server on port `3001`, opens Chromium headlessly, and runs the smoke suite for album browsing, cart flows, persistence, artist browsing, artist CRUD, and album CRUD.
 
 #### Starting the Album API (.NET legacy)
 

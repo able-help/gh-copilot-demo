@@ -1,37 +1,125 @@
-import { seedAlbums } from './data'
-import type { Album, AlbumInput, SortBy, SortOrder } from './types'
+import { seedAlbums, seedArtists } from './data'
+import type { Album, AlbumInput, AlbumRecord, Artist, ArtistInput, ArtistRecord, SortBy, SortOrder } from './types'
 
-function cloneAlbum(album: Album): Album {
+function cloneArtist(artist: ArtistRecord): Artist {
   return {
-    ...album,
-    artist: {
-      ...album.artist
-    }
+    ...artist
   }
 }
 
-export class AlbumStore {
-  private albums: Album[]
+function cloneAlbumRecord(album: AlbumRecord): AlbumRecord {
+  return {
+    ...album
+  }
+}
 
-  constructor(initialAlbums: Album[] = seedAlbums) {
-    this.albums = initialAlbums.map(cloneAlbum)
+function deriveYear(releaseDate: string | null): number | null {
+  if (!releaseDate) {
+    return null
   }
 
-  reset(initialAlbums: Album[] = seedAlbums): void {
-    this.albums = initialAlbums.map(cloneAlbum)
+  const year = Number.parseInt(releaseDate.slice(0, 4), 10)
+  return Number.isInteger(year) ? year : null
+}
+
+export class AlbumStore {
+  private albums: AlbumRecord[]
+  private artists: ArtistRecord[]
+
+  constructor(initialAlbums: AlbumRecord[] = seedAlbums, initialArtists: ArtistRecord[] = seedArtists) {
+    this.albums = initialAlbums.map(cloneAlbumRecord)
+    this.artists = initialArtists.map(cloneArtist)
+  }
+
+  reset(initialAlbums: AlbumRecord[] = seedAlbums, initialArtists: ArtistRecord[] = seedArtists): void {
+    this.albums = initialAlbums.map(cloneAlbumRecord)
+    this.artists = initialArtists.map(cloneArtist)
+  }
+
+  hasArtist(id: number): boolean {
+    return this.artists.some((artist) => artist.id === id)
+  }
+
+  getArtistById(id: number): Artist | undefined {
+    const artist = this.artists.find((entry) => entry.id === id)
+    return artist ? cloneArtist(artist) : undefined
+  }
+
+  listArtists(): Artist[] {
+    return this.artists.map(cloneArtist)
+  }
+
+  createArtist(input: ArtistInput): Artist {
+    const nextId = this.artists.reduce((maxId, artist) => Math.max(maxId, artist.id), 0) + 1
+    const createdArtist: ArtistRecord = {
+      id: nextId,
+      name: input.name,
+      genre: input.genre,
+      created_at: new Date().toISOString()
+    }
+
+    this.artists.push(createdArtist)
+    return cloneArtist(createdArtist)
+  }
+
+  updateArtist(id: number, input: ArtistInput): Artist | undefined {
+    const index = this.artists.findIndex((artist) => artist.id === id)
+
+    if (index === -1) {
+      return undefined
+    }
+
+    const updatedArtist: ArtistRecord = {
+      id,
+      name: input.name,
+      genre: input.genre,
+      created_at: this.artists[index].created_at
+    }
+
+    this.artists[index] = updatedArtist
+    return cloneArtist(updatedArtist)
+  }
+
+  deleteArtist(id: number): { deleted: boolean; reason?: 'in-use' | 'missing' } {
+    const index = this.artists.findIndex((artist) => artist.id === id)
+
+    if (index === -1) {
+      return { deleted: false, reason: 'missing' }
+    }
+
+    if (this.albums.some((album) => album.artist_id === id)) {
+      return { deleted: false, reason: 'in-use' }
+    }
+
+    this.artists.splice(index, 1)
+    return { deleted: true }
+  }
+
+  private joinAlbum(record: AlbumRecord): Album {
+    const artist = this.artists.find((entry) => entry.id === record.artist_id)
+
+    if (!artist) {
+      throw new Error(`Album ${record.id} references missing artist ${record.artist_id}.`)
+    }
+
+    return {
+      ...record,
+      artist: cloneArtist(artist),
+      year: deriveYear(record.release_date)
+    }
   }
 
   list(): Album[] {
-    return this.albums.map(cloneAlbum)
+    return this.albums.map((album) => this.joinAlbum(album))
   }
 
   getById(id: number): Album | undefined {
     const album = this.albums.find((entry) => entry.id === id)
-    return album ? cloneAlbum(album) : undefined
+    return album ? this.joinAlbum(album) : undefined
   }
 
   searchByYear(year: number): Album[] {
-    return this.albums.filter((album) => album.year === year).map(cloneAlbum)
+    return this.albums.filter((album) => deriveYear(album.release_date) === year).map((album) => this.joinAlbum(album))
   }
 
   listSorted(sortBy: SortBy, order: SortOrder): Album[] {
@@ -51,19 +139,18 @@ export class AlbumStore {
 
   create(input: AlbumInput): Album {
     const nextId = this.albums.reduce((maxId, album) => Math.max(maxId, album.id), 0) + 1
-    const createdAlbum: Album = {
+    const createdAlbum: AlbumRecord = {
       id: nextId,
       title: input.title,
-      artist: {
-        ...input.artist
-      },
-      year: input.year,
+      artist_id: input.artist_id,
       price: input.price,
-      image_url: input.image_url
+      image_url: input.image_url,
+      release_date: input.release_date,
+      created_at: new Date().toISOString()
     }
 
     this.albums.push(createdAlbum)
-    return cloneAlbum(createdAlbum)
+    return this.joinAlbum(createdAlbum)
   }
 
   update(id: number, input: AlbumInput): Album | undefined {
@@ -73,19 +160,18 @@ export class AlbumStore {
       return undefined
     }
 
-    const updatedAlbum: Album = {
+    const updatedAlbum: AlbumRecord = {
       id,
       title: input.title,
-      artist: {
-        ...input.artist
-      },
-      year: input.year,
+      artist_id: input.artist_id,
       price: input.price,
-      image_url: input.image_url
+      image_url: input.image_url,
+      release_date: input.release_date,
+      created_at: this.albums[index].created_at
     }
 
     this.albums[index] = updatedAlbum
-    return cloneAlbum(updatedAlbum)
+    return this.joinAlbum(updatedAlbum)
   }
 
   delete(id: number): boolean {

@@ -15,61 +15,74 @@
     <div class="album-info">
       <h3 class="album-title">{{ album.title }}</h3>
       <p class="album-artist">{{ album.artist.name }}</p>
+      <div class="album-meta">
+        <span>{{ t('genreLabel') }}: {{ album.artist.genre ?? t('noGenre') }}</span>
+        <span>{{ t('releaseDateLabel') }}: {{ album.release_date ? formatDate(album.release_date) : t('noReleaseDate') }}</span>
+        <span v-if="album.year !== null">{{ t('yearLabel') }}: {{ album.year }}</span>
+      </div>
       <div class="album-price">
-        <span class="price">${{ album.price.toFixed(2) }}</span>
+        <span class="price">{{ formatCurrency(album.price) }}</span>
       </div>
     </div>
     
     <div class="album-actions">
-      <button
-        class="btn"
-        :class="inCart ? 'btn-in-cart' : 'btn-primary'"
-        :disabled="inCart"
-        @click="!inCart && $emit('addToCart', album)"
-        :aria-label="inCart ? t('inCart') : t('addToCart')"
-      >
-        {{ inCart ? `✓ ${t('inCart')}` : t('addToCart') }}
+      <button class="btn btn-primary" type="button" @click="$emit('add-to-cart', album)">
+        {{ t('addToCart') }}
       </button>
-      <button class="btn btn-secondary">Preview</button>
+      <button class="btn btn-secondary" type="button" @click="$emit('preview', album)">{{ t('preview') }}</button>
     </div>
+    <div class="album-management-actions">
+      <button class="btn btn-tertiary" type="button" @click="$emit('edit', album)">
+        {{ t('editAlbum') }}
+      </button>
+      <button class="btn btn-danger" type="button" @click="$emit('delete', album.id)">
+        {{ t('deleteAlbum') }}
+      </button>
+    </div>
+    <p v-if="quantity > 0" class="cart-status">{{ t('quantityInCart', { count: quantity }) }}</p>
   </div>
 </template>
 
 <script setup lang="ts">
+import { formatCurrency, formatDate, t } from '../i18n'
 import type { Album } from '../types/album'
-import { useI18n } from '../i18n'
 
 interface Props {
   album: Album
-  inCart?: boolean
+  quantity: number
 }
 
 defineProps<Props>()
-defineEmits<{
-  addToCart: [album: Album]
-}>()
 
-const { t } = useI18n()
+defineEmits<{
+  'add-to-cart': [album: Album]
+  preview: [album: Album]
+  edit: [album: Album]
+  delete: [albumId: number]
+}>()
 
 const handleImageError = (event: Event): void => {
   const target = event.target as HTMLImageElement
-  target.src = 'https://via.placeholder.com/300x300/667eea/white?text=Album+Cover'
+  target.src = `https://via.placeholder.com/300x300/667eea/white?text=${encodeURIComponent(t('albumCoverFallback'))}`
 }
 </script>
 
 <style scoped>
 .album-card {
-  background: rgba(255, 255, 255, 0.95);
+  background: var(--surface-card);
   border-radius: 15px;
   overflow: hidden;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
-  transition: all 0.3s ease;
+  box-shadow: var(--shadow-card);
+  transition: transform 0.15s ease, box-shadow 0.3s ease;
   backdrop-filter: blur(10px);
 }
 
 .album-card:hover {
-  transform: translateY(-10px);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-card-hover);
+}
+
+.album-card:active {
+  transform: scale(0.9);
 }
 
 .album-image {
@@ -94,7 +107,7 @@ const handleImageError = (event: Event): void => {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
+  background: var(--album-overlay-backdrop);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -109,19 +122,19 @@ const handleImageError = (event: Event): void => {
 .play-button {
   width: 60px;
   height: 60px;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--surface-pill);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 1.5rem;
-  color: #667eea;
+  color: var(--text-accent-strong);
   cursor: pointer;
   transition: all 0.3s ease;
 }
 
 .play-button:hover {
-  background: white;
+  background: var(--input-bg);
   transform: scale(1.1);
 }
 
@@ -132,13 +145,13 @@ const handleImageError = (event: Event): void => {
 .album-title {
   font-size: 1.3rem;
   font-weight: bold;
-  color: #333;
+  color: var(--text-primary);
   margin: 0 0 0.5rem 0;
   line-height: 1.3;
 }
 
 .album-artist {
-  color: #666;
+  color: var(--text-secondary);
   font-size: 1rem;
   margin: 0 0 1rem 0;
 }
@@ -149,14 +162,29 @@ const handleImageError = (event: Event): void => {
   align-items: center;
 }
 
+.album-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  color: var(--text-tertiary);
+  font-size: 0.88rem;
+}
+
 .price {
   font-size: 1.5rem;
   font-weight: bold;
-  color: #667eea;
+  color: var(--text-accent-strong);
 }
 
 .album-actions {
   padding: 0 1.5rem 1.5rem;
+  display: flex;
+  gap: 0.75rem;
+}
+
+.album-management-actions {
+  padding: 0 1.5rem 1rem;
   display: flex;
   gap: 0.75rem;
 }
@@ -173,31 +201,54 @@ const handleImageError = (event: Event): void => {
 }
 
 .btn-primary {
-  background: #667eea;
-  color: white;
+  background: var(--text-accent-strong);
+  color: var(--text-on-accent);
 }
 
 .btn-primary:hover {
-  background: #5a6fd8;
+  background: var(--text-accent);
   transform: translateY(-2px);
 }
 
-.btn-in-cart {
-  background: #4caf50;
-  color: white;
-  opacity: 0.85;
-  cursor: default;
+.cart-status {
+  padding: 0 1.5rem 1.5rem;
+  margin: 0;
+  color: var(--text-accent);
+  font-size: 0.9rem;
+  font-weight: 600;
 }
 
 .btn-secondary {
-  background: transparent;
-  color: #667eea;
-  border: 2px solid #667eea;
+  background: var(--button-secondary-bg);
+  color: var(--text-accent-strong);
+  border: 2px solid var(--button-secondary-border);
 }
 
 .btn-secondary:hover {
-  background: #667eea;
-  color: white;
+  background: var(--text-accent-strong);
+  color: var(--text-on-accent);
+  transform: translateY(-2px);
+}
+
+.btn-tertiary {
+  background: var(--surface-accent-strong);
+  color: var(--text-accent);
+  border: 1px solid var(--button-tertiary-border);
+}
+
+.btn-tertiary:hover {
+  background: var(--surface-accent-hover);
+  transform: translateY(-2px);
+}
+
+.btn-danger {
+  background: var(--surface-danger);
+  color: var(--text-on-danger);
+  border: 1px solid var(--button-danger-border);
+}
+
+.btn-danger:hover {
+  background: var(--surface-danger-hover);
   transform: translateY(-2px);
 }
 
@@ -207,6 +258,11 @@ const handleImageError = (event: Event): void => {
   }
   
   .album-actions {
+    padding: 0 1rem 1rem;
+    flex-direction: column;
+  }
+
+  .album-management-actions {
     padding: 0 1rem 1rem;
     flex-direction: column;
   }

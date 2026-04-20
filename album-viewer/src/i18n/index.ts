@@ -1,31 +1,103 @@
-import { ref, computed } from 'vue'
-import en from './locales/en'
-import fr from './locales/fr'
-import de from './locales/de'
+import { computed, ref } from 'vue'
+import type { ThemeName } from '../theme'
+import { de } from './locales/de'
+import { en } from './locales/en'
+import { fr } from './locales/fr'
 
-type Locale = 'en' | 'fr' | 'de'
-type Messages = typeof en
+const messages = {
+  en,
+  fr,
+  de
+}
 
-const locales: Record<Locale, Messages> = { en, fr, de }
+export type Locale = keyof typeof messages
+type MessageKey = Exclude<keyof typeof en, 'languages' | 'monthsShort' | 'themes'>
+type MessageParams = {
+  count?: number
+}
 
-const currentLocale = ref<Locale>('en')
+const intlLocales: Record<Locale, string> = {
+  en: 'en-US',
+  fr: 'fr-FR',
+  de: 'de-DE'
+}
 
-export function useI18n() {
-  const locale = currentLocale
+const storageKey = 'album-viewer-locale'
 
-  const setLocale = (l: Locale) => {
-    currentLocale.value = l
+function detectInitialLocale(): Locale {
+  if (typeof window === 'undefined') {
+    return 'en'
   }
 
-  const t = computed(() => (key: keyof Messages, params?: Record<string, string | number>) => {
-    let msg: string = locales[currentLocale.value][key] ?? locales.en[key] ?? key
-    if (params) {
-      for (const [k, v] of Object.entries(params)) {
-        msg = msg.replace(`{${k}}`, String(v))
-      }
-    }
-    return msg
-  })
+  const storedLocale = window.localStorage.getItem(storageKey)
+  if (storedLocale === 'en' || storedLocale === 'fr' || storedLocale === 'de') {
+    return storedLocale
+  }
 
-  return { locale, setLocale, t }
+  return 'en'
+}
+
+const localeRef = ref<Locale>(detectInitialLocale())
+
+export const locale = computed({
+  get: () => localeRef.value,
+  set: (value: Locale) => {
+    localeRef.value = value
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(storageKey, value)
+    }
+  }
+})
+
+export const availableLocales: Locale[] = ['en', 'fr', 'de']
+
+export function t(key: MessageKey, params?: MessageParams): string {
+  const message = messages[localeRef.value][key]
+
+  if (typeof message !== 'string') {
+    return ''
+  }
+
+  return message.replace(/\{count\}/g, String(params?.count ?? 0))
+}
+
+export function languageLabelFor(value: Locale): string {
+  return messages[localeRef.value].languages[value]
+}
+
+export function themeLabelFor(value: ThemeName): string {
+  return messages[localeRef.value].themes[value]
+}
+
+export function monthLabels(): readonly string[] {
+  return messages[localeRef.value].monthsShort
+}
+
+export function formatCurrency(value: number): string {
+  return new Intl.NumberFormat(intlLocales[localeRef.value], {
+    style: 'currency',
+    currency: 'USD'
+  }).format(value)
+}
+
+export function formatDate(value: string): string {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (!match) {
+    return value
+  }
+
+  const year = Number(match[1])
+  const month = Number(match[2])
+  const day = Number(match[3])
+
+  return new Intl.DateTimeFormat(intlLocales[localeRef.value], {
+    dateStyle: 'medium'
+  }).format(new Date(year, month - 1, day))
+}
+
+export function formatDateTime(value: string): string {
+  return new Intl.DateTimeFormat(intlLocales[localeRef.value], {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  }).format(new Date(value))
 }

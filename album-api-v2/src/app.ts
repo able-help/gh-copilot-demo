@@ -2,7 +2,7 @@ import express, { type Request, type Response } from 'express'
 import cors from 'cors'
 import { albumStore } from './store'
 import type { SortBy, SortOrder } from './types'
-import { validateAlbumInput } from './validation'
+import { validateAlbumInput, validateArtistInput } from './validation'
 
 const validSortFields = new Set<SortBy>(['title', 'artist', 'price'])
 
@@ -23,6 +23,22 @@ export function createApp() {
 
   app.get('/albums', (_request: Request, response: Response) => {
     response.json(albumStore.list())
+  })
+
+  app.get('/artists', (_request: Request, response: Response) => {
+    response.json(albumStore.listArtists())
+  })
+
+  app.get('/artists/:id', (request: Request, response: Response) => {
+    const id = parseId(request.params.id)
+    const artist = albumStore.getArtistById(id)
+
+    if (!artist) {
+      response.sendStatus(404)
+      return
+    }
+
+    response.json(artist)
   })
 
   app.get('/albums/sorted', (request: Request, response: Response) => {
@@ -71,8 +87,25 @@ export function createApp() {
       return
     }
 
+    if (!albumStore.hasArtist(data.artist_id)) {
+      response.status(400).send('Artist_id must reference an existing artist.')
+      return
+    }
+
     const album = albumStore.create(data)
     response.status(201).location(`/albums/${album.id}`).json(album)
+  })
+
+  app.post('/artists', (request: Request, response: Response) => {
+    const { error, data } = validateArtistInput(request.body)
+
+    if (error || !data) {
+      response.status(400).send(error)
+      return
+    }
+
+    const artist = albumStore.createArtist(data)
+    response.status(201).location(`/artists/${artist.id}`).json(artist)
   })
 
   app.put('/albums/:id', (request: Request, response: Response) => {
@@ -80,6 +113,11 @@ export function createApp() {
 
     if (error || !data) {
       response.status(400).send(error)
+      return
+    }
+
+    if (!albumStore.hasArtist(data.artist_id)) {
+      response.status(400).send('Artist_id must reference an existing artist.')
       return
     }
 
@@ -94,12 +132,48 @@ export function createApp() {
     response.json(album)
   })
 
+  app.put('/artists/:id', (request: Request, response: Response) => {
+    const { error, data } = validateArtistInput(request.body)
+
+    if (error || !data) {
+      response.status(400).send(error)
+      return
+    }
+
+    const id = parseId(request.params.id)
+    const artist = albumStore.updateArtist(id, data)
+
+    if (!artist) {
+      response.sendStatus(404)
+      return
+    }
+
+    response.json(artist)
+  })
+
   app.delete('/albums/:id', (request: Request, response: Response) => {
     const id = parseId(request.params.id)
     const deleted = albumStore.delete(id)
 
     if (!deleted) {
       response.sendStatus(404)
+      return
+    }
+
+    response.sendStatus(204)
+  })
+
+  app.delete('/artists/:id', (request: Request, response: Response) => {
+    const id = parseId(request.params.id)
+    const result = albumStore.deleteArtist(id)
+
+    if (!result.deleted) {
+      if (result.reason === 'missing') {
+        response.sendStatus(404)
+        return
+      }
+
+      response.status(409).send('Artist is still referenced by one or more albums.')
       return
     }
 

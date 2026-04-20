@@ -12,6 +12,10 @@ export default defineConfig({
   server: {
     port: 3001,
     proxy: {
+      '/artists': {
+        target: 'http://localhost:3000',
+        changeOrigin: true
+      },
       '/albums': {
         target: 'http://localhost:3000',
         changeOrigin: true

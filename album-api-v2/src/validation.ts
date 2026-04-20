@@ -1,4 +1,4 @@
-import type { AlbumInput } from './types'
+import type { AlbumInput, ArtistInput } from './types'
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -37,24 +37,12 @@ export function validateAlbumInput(value: unknown): { error?: string; data?: Alb
     return { error: 'Title is required.' }
   }
 
-  if (!isPlainObject(value.artist)) {
-    return { error: 'Artist is required.' }
+  if (typeof value.artist_id !== 'number' || !Number.isInteger(value.artist_id) || value.artist_id <= 0) {
+    return { error: 'Artist_id must be greater than 0.' }
   }
 
-  if (!hasNonEmptyText(value.artist.name)) {
-    return { error: 'Artist.Name is required.' }
-  }
-
-  if (!isValidDateOnly(value.artist.birthdate)) {
-    return { error: 'Artist.Birthdate is required.' }
-  }
-
-  if (!hasNonEmptyText(value.artist.birthPlace)) {
-    return { error: 'Artist.BirthPlace is required.' }
-  }
-
-  if (typeof value.year !== 'number' || !Number.isInteger(value.year) || value.year <= 0) {
-    return { error: 'Year must be greater than 0.' }
+  if (value.release_date !== undefined && value.release_date !== null && !isValidDateOnly(value.release_date)) {
+    return { error: 'Release_date must be a valid YYYY-MM-DD date or null.' }
   }
 
   if (typeof value.price !== 'number' || Number.isNaN(value.price) || value.price < 0) {
@@ -68,14 +56,33 @@ export function validateAlbumInput(value: unknown): { error?: string; data?: Alb
   return {
     data: {
       title: value.title.trim(),
-      artist: {
-        name: value.artist.name.trim(),
-        birthdate: value.artist.birthdate.trim(),
-        birthPlace: value.artist.birthPlace.trim()
-      },
-      year: value.year,
+      artist_id: value.artist_id,
       price: value.price,
-      image_url: value.image_url.trim()
+      image_url: value.image_url.trim(),
+      release_date: typeof value.release_date === 'string' ? value.release_date.trim() : null
+    }
+  }
+}
+
+export function validateArtistInput(value: unknown): { error?: string; data?: ArtistInput } {
+  if (!isPlainObject(value)) {
+    return { error: 'Request body must be a JSON object.' }
+  }
+
+  if (!hasNonEmptyText(value.name)) {
+    return { error: 'Name is required.' }
+  }
+
+  if (value.genre !== undefined && value.genre !== null && typeof value.genre !== 'string') {
+    return { error: 'Genre must be a string or null.' }
+  }
+
+  const normalizedGenre = typeof value.genre === 'string' ? value.genre.trim() : null
+
+  return {
+    data: {
+      name: value.name.trim(),
+      genre: normalizedGenre && normalizedGenre.length > 0 ? normalizedGenre : null
     }
   }
 }

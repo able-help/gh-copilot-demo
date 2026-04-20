@@ -1,5 +1,19 @@
 import * as d3 from 'd3'
 
+type SalesChartOptions = {
+	months: readonly string[]
+	formatCurrency: (value: number) => string
+	monthAxisLabel: string
+	albumsSoldAxisLabel: string
+	sellingPriceAxisLabel: string
+	sellingPriceTooltipLabel: string
+	priceLegendLabel: string
+	axisTextColor: string
+	gridLineColor: string
+	barFill: string
+	seriesColors: readonly string[]
+}
+
 type SalesPoint = {
 	year: number
 	month: number | string
@@ -7,7 +21,7 @@ type SalesPoint = {
 	sellingPrice: number
 }
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+const MONTH_KEYS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
 
 function normalizeMonth(month: number | string): number {
 	if (typeof month === 'number') {
@@ -15,7 +29,7 @@ function normalizeMonth(month: number | string): number {
 	}
 
 	const normalized = month.trim().slice(0, 3).toLowerCase()
-	const index = MONTHS.findIndex((m) => m.toLowerCase() === normalized)
+	const index = MONTH_KEYS.findIndex((m) => m.toLowerCase() === normalized)
 	return index
 }
 
@@ -23,7 +37,11 @@ function asNumber(value: unknown): number {
 	return typeof value === 'number' ? value : Number(value)
 }
 
-export async function renderAlbumSalesPlot(container: HTMLElement, dataUrl: string): Promise<void> {
+export async function renderAlbumSalesPlot(
+	container: HTMLElement,
+	dataUrl: string,
+	options: SalesChartOptions
+): Promise<void> {
 	const raw = await d3.json<SalesPoint[]>(dataUrl)
 
 	if (!Array.isArray(raw) || raw.length === 0) {
@@ -52,8 +70,9 @@ export async function renderAlbumSalesPlot(container: HTMLElement, dataUrl: stri
 		(d) => d.monthIndex
 	)
 
+	const months = options.months
 	const soldMonthMap = new Map<number, number>(soldByMonth)
-	const soldSeries = MONTHS.map((month, index) => ({
+	const soldSeries = months.map((month, index) => ({
 		month,
 		monthIndex: index,
 		albumsSold: soldMonthMap.get(index) ?? 0
@@ -71,7 +90,7 @@ export async function renderAlbumSalesPlot(container: HTMLElement, dataUrl: stri
 			const monthMap = new Map<number, number>(points)
 			return {
 				year,
-				points: MONTHS.map((month, monthIndex) => ({
+				points: months.map((month, monthIndex) => ({
 					month,
 					monthIndex,
 					sellingPrice: monthMap.get(monthIndex) ?? 0
@@ -99,7 +118,7 @@ export async function renderAlbumSalesPlot(container: HTMLElement, dataUrl: stri
 
 	const x = d3
 		.scaleBand<string>()
-		.domain(MONTHS)
+		.domain(months as string[])
 		.range([0, innerWidth])
 		.padding(0.2)
 
@@ -119,21 +138,32 @@ export async function renderAlbumSalesPlot(container: HTMLElement, dataUrl: stri
 		.nice()
 		.range([innerHeight, 0])
 
-	const color = d3.scaleOrdinal<number, string>(d3.schemeTableau10).domain(yearlyPriceSeries.map((d) => d.year))
+	const palette = options.seriesColors.filter((value) => value.trim().length > 0)
+	const color = d3
+		.scaleOrdinal<number, string>(palette.length > 0 ? palette : d3.schemeTableau10)
+		.domain(yearlyPriceSeries.map((d) => d.year))
 
 	chart
 		.append('g')
 		.attr('transform', `translate(0,${innerHeight})`)
 		.call(d3.axisBottom(x))
 		.selectAll('text')
+		.attr('fill', options.axisTextColor)
 		.style('font-size', '12px')
 
-	chart.append('g').call(d3.axisLeft(ySold).ticks(6))
-	chart.append('g').attr('transform', `translate(${innerWidth},0)`).call(d3.axisRight(yPrice).ticks(6))
+	chart.append('g').call(d3.axisLeft(ySold).ticks(6)).selectAll('text').attr('fill', options.axisTextColor)
+	chart
+		.append('g')
+		.attr('transform', `translate(${innerWidth},0)`)
+		.call(d3.axisRight(yPrice).ticks(6).tickFormat((value) => options.formatCurrency(Number(value))))
+		.selectAll('text')
+		.attr('fill', options.axisTextColor)
+
+	chart.selectAll('.domain, .tick line').attr('stroke', options.gridLineColor)
 
 	chart
 		.append('g')
-		.attr('stroke', 'rgba(255,255,255,0.15)')
+		.attr('stroke', options.gridLineColor)
 		.selectAll('line')
 		.data(ySold.ticks(6))
 		.join('line')
@@ -151,7 +181,7 @@ export async function renderAlbumSalesPlot(container: HTMLElement, dataUrl: stri
 		.attr('width', x.bandwidth())
 		.attr('y', (d) => ySold(d.albumsSold))
 		.attr('height', (d) => innerHeight - ySold(d.albumsSold))
-		.attr('fill', 'rgba(255, 206, 86, 0.55)')
+		.attr('fill', options.barFill)
 
 	const line = d3
 		.line<{ month: string; monthIndex: number; sellingPrice: number }>()
@@ -180,16 +210,16 @@ export async function renderAlbumSalesPlot(container: HTMLElement, dataUrl: stri
 		.attr('r', 3.2)
 		.attr('fill', (d) => color(d.year))
 		.append('title')
-		.text((d) => `${d.year} ${d.month} - Selling Price: $${d.sellingPrice.toFixed(2)}`)
+		.text((d) => `${d.year} ${d.month} - ${options.sellingPriceTooltipLabel}: ${options.formatCurrency(d.sellingPrice)}`)
 
 	svg
 		.append('text')
 		.attr('x', width / 2)
 		.attr('y', height - 18)
 		.attr('text-anchor', 'middle')
-		.attr('fill', '#f8f8f8')
+		.attr('fill', options.axisTextColor)
 		.style('font-size', '13px')
-		.text('Month')
+		.text(options.monthAxisLabel)
 
 	svg
 		.append('text')
@@ -197,9 +227,9 @@ export async function renderAlbumSalesPlot(container: HTMLElement, dataUrl: stri
 		.attr('y', height / 2)
 		.attr('transform', `rotate(-90, 18, ${height / 2})`)
 		.attr('text-anchor', 'middle')
-		.attr('fill', '#f8f8f8')
+		.attr('fill', options.axisTextColor)
 		.style('font-size', '13px')
-		.text('Albums Sold')
+		.text(options.albumsSoldAxisLabel)
 
 	svg
 		.append('text')
@@ -207,9 +237,9 @@ export async function renderAlbumSalesPlot(container: HTMLElement, dataUrl: stri
 		.attr('y', height / 2)
 		.attr('transform', `rotate(90, ${width - 18}, ${height / 2})`)
 		.attr('text-anchor', 'middle')
-		.attr('fill', '#f8f8f8')
+		.attr('fill', options.axisTextColor)
 		.style('font-size', '13px')
-		.text('Selling Price (USD)')
+		.text(options.sellingPriceAxisLabel)
 
 	const legend = svg.append('g').attr('transform', `translate(${margin.left}, 12)`)
 
@@ -225,7 +255,7 @@ export async function renderAlbumSalesPlot(container: HTMLElement, dataUrl: stri
 		.append('text')
 		.attr('x', 20)
 		.attr('y', 11)
-		.attr('fill', '#f8f8f8')
+		.attr('fill', options.axisTextColor)
 		.style('font-size', '12px')
-		.text((d) => `Price ${d.year}`)
+		.text((d) => `${options.priceLegendLabel} ${d.year}`)
 }

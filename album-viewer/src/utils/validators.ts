@@ -32,9 +32,33 @@ export function validateGuid(input: string): boolean {
   const trimmedInput = input.trim()
 
   // Supports canonical GUIDs, optionally wrapped in braces.
-  const guidPattern = /^\{?[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\}?$/
+  const guidPattern = /^(?:\{[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}\}|[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12})$/
 
   return guidPattern.test(trimmedInput)
+}
+
+export function validatePhoneNumber(input: string): boolean {
+  const trimmedInput = input.trim()
+
+  if (trimmedInput.length === 0) {
+    throw new Error('Phone number cannot be empty')
+  }
+
+  const normalizedInput = trimmedInput.replace(/[\s().-]/g, '')
+
+  if (normalizedInput.startsWith('+')) {
+    return /^\+[1-9]\d{7,14}$/.test(normalizedInput)
+  }
+
+  if (normalizedInput.startsWith('00')) {
+    return /^00[1-9]\d{7,14}$/.test(normalizedInput)
+  }
+
+  if (/^[2-9]\d{9}$/.test(normalizedInput)) {
+    return true
+  }
+
+  return false
 }
 
 export function validateIPV6(input: string): boolean {

@@ -21,7 +21,15 @@
     </div>
     
     <div class="album-actions">
-      <button class="btn btn-primary">Add to Cart</button>
+      <button
+        class="btn"
+        :class="inCart ? 'btn-in-cart' : 'btn-primary'"
+        :disabled="inCart"
+        @click="!inCart && $emit('addToCart', album)"
+        :aria-label="inCart ? t('inCart') : t('addToCart')"
+      >
+        {{ inCart ? `✓ ${t('inCart')}` : t('addToCart') }}
+      </button>
       <button class="btn btn-secondary">Preview</button>
     </div>
   </div>
@@ -29,12 +37,19 @@
 
 <script setup lang="ts">
 import type { Album } from '../types/album'
+import { useI18n } from '../i18n'
 
 interface Props {
   album: Album
+  inCart?: boolean
 }
 
 defineProps<Props>()
+defineEmits<{
+  addToCart: [album: Album]
+}>()
+
+const { t } = useI18n()
 
 const handleImageError = (event: Event): void => {
   const target = event.target as HTMLImageElement
@@ -165,6 +180,13 @@ const handleImageError = (event: Event): void => {
 .btn-primary:hover {
   background: #5a6fd8;
   transform: translateY(-2px);
+}
+
+.btn-in-cart {
+  background: #4caf50;
+  color: white;
+  opacity: 0.85;
+  cursor: default;
 }
 
 .btn-secondary {

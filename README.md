@@ -35,6 +35,16 @@ There are multiple ways to run this solution locally. Choose the method that bes
 - [TypeScript](https://www.typescriptlang.org/) (automatically installed with project dependencies)
 - [Visual Studio Code](https://code.visualstudio.com/) (recommended)
 
+### Install .NET 8 Without Admin Rights
+
+If you cannot install system-wide packages, use the local installer script:
+
+```bash
+./scripts/install-dotnet8-local.sh
+```
+
+This installs .NET to `~/.dotnet` and prints the `DOTNET_ROOT` and `PATH` lines to add to your shell profile.
+
 ### Option 1: Using VS Code Debug Panel (Recommended)
 
 This is the easiest way to run the solution with full debugging capabilities.

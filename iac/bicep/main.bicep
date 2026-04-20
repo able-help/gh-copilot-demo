@@ -129,3 +129,26 @@ output env array=[
   'Storage account name: ${storageAccount.name}'
   'Storage container name: ${blobContainer.name}'
 ]
+
+output containerRegistry object = {
+  registryName: registryName
+  registryUsername: registryUsername
+  registryPassword: registryPassword
+}
+
+resource openAi 'Microsoft.CognitiveServices/accounts@2023-05-01' = {
+  name: 'openai-${uniqueSuffix}'
+  location: location
+  kind: 'OpenAI'
+  sku: {
+    name: 'S0'
+  }
+  properties: {
+    apiProperties: {
+      enableDynamicThrottling: true
+    }
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+output openAiResourceName string = openAi.name

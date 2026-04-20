@@ -1,0 +1,192 @@
+name: Build and Push albums-api Image
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: albums-api
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Restore .NET dependencies
+        run: dotnet restore ./gh-copilot-demo.sln
+
+      - name: Build .NET solution
+        run: dotnet build ./gh-copilot-demo.sln --configuration Release --no-restore
+
+      - name: Run .NET tests
+        run: dotnet test ./gh-copilot-demo.sln --configuration Release --no-build --verbosity normal
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image (no push)
+        uses: docker/build-push-action@v6
+        with:
+          context: ./albums-api
+          file: ./albums-api/Dockerfile
+          push: false
+          load: true
+          tags: local/${{ env.IMAGE_NAME }}:ci-${{ github.run_id }}
+
+      - name: Smoke test album-api image
+        run: |
+          set -euo pipefail
+          docker run -d --name albums-api-test -p 18080:8080 local/${{ env.IMAGE_NAME }}:ci-${{ github.run_id }}
+          cleanup() {
+            docker rm -f albums-api-test >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          success=false
+          for _ in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:18080/albums || true)
+            if [[ "$code" == "200" ]]; then
+              success=true
+              break
+            fi
+            sleep 2
+          done
+
+          if [[ "$success" != "true" ]]; then
+            docker logs albums-api-test
+            echo "album-api container did not return HTTP 200 on /albums"
+            exit 1
+          fi
+
+  push:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: build
+    outputs:
+      image: ${{ steps.image.outputs.value }}
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          registry: docker.io
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=${{ github.run_id }}
+            type=raw,value=latest
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./albums-api
+          file: ./albums-api/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Export pushed image tag
+        id: image
+        run: echo "value=docker.io/${{ secrets.DOCKERHUB_USERNAME }}/${{ env.IMAGE_NAME }}:${{ github.run_id }}" >> "$GITHUB_OUTPUT"
+
+  deploy-dev-aks:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: push
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      - name: Set AKS context
+        uses: azure/aks-set-context@v4
+        with:
+          resource-group: ${{ secrets.AKS_RESOURCE_GROUP_DEV }}
+          cluster-name: ${{ secrets.AKS_CLUSTER_NAME_DEV }}
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Deploy album-api to dev AKS
+        env:
+          IMAGE: ${{ needs.push.outputs.image }}
+          AKS_NAMESPACE_DEV: ${{ secrets.AKS_NAMESPACE_DEV }}
+        run: |
+          set -euo pipefail
+          NAMESPACE="${AKS_NAMESPACE_DEV:-dev}"
+
+          kubectl create namespace "$NAMESPACE" --dry-run=client -o yaml | kubectl apply -f -
+
+          cat <<EOF | kubectl apply -n "$NAMESPACE" -f -
+          apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: albums-api
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: albums-api
+            template:
+              metadata:
+                labels:
+                  app: albums-api
+              spec:
+                containers:
+                  - name: albums-api
+                    image: ${IMAGE}
+                    imagePullPolicy: Always
+                    ports:
+                      - containerPort: 8080
+          ---
+          apiVersion: v1
+          kind: Service
+          metadata:
+            name: albums-api
+          spec:
+            selector:
+              app: albums-api
+            ports:
+              - protocol: TCP
+                port: 80
+                targetPort: 8080
+            type: ClusterIP
+          EOF
+
+          kubectl rollout status deployment/albums-api -n "$NAMESPACE" --timeout=180s

@@ -120,9 +120,8 @@ namespace UnsecureApp.Controllers
         /// <summary>
         /// Stores the database connection string used by this controller.
         /// </summary>
-        private string connectionString =
-            System.Environment.GetEnvironmentVariable("ALBUMS_API_CONNECTION_STRING")
-            ?? throw new InvalidOperationException("The ALBUMS_API_CONNECTION_STRING environment variable must be configured.");
+        private readonly string? connectionString =
+            System.Environment.GetEnvironmentVariable("ALBUMS_API_CONNECTION_STRING");
 
         private FileStream OpenFileStream(string userInput)
         {
@@ -185,6 +184,11 @@ namespace UnsecureApp.Controllers
 
         private SqlConnection CreateConnection()
         {
+            if (string.IsNullOrWhiteSpace(connectionString))
+            {
+                throw new InvalidOperationException("The ALBUMS_API_CONNECTION_STRING environment variable must be configured.");
+            }
+
             return new SqlConnection(connectionString);
         }
 

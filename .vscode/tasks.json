@@ -48,6 +48,73 @@
         "problemMatcher": []
     },
     {
+        "label": "npm: install - album-api-v2",
+        "type": "shell",
+        "command": "npm install",
+        "args": [],
+        "options": {
+            "cwd": "${workspaceFolder}/album-api-v2"
+        },
+        "problemMatcher": []
+    },
+    {
+        "label": "shell: npm: build - album-api-v2",
+        "type": "shell",
+        "command": "npm",
+        "args": ["run", "build"],
+        "options": {
+            "cwd": "${workspaceFolder}/album-api-v2"
+        },
+        "problemMatcher": []
+    },
+    {
+        "label": "shell: npm: test - album-api-v2",
+        "type": "shell",
+        "command": "npm",
+        "args": ["run", "test"],
+        "options": {
+            "cwd": "${workspaceFolder}/album-api-v2"
+        },
+        "problemMatcher": []
+    },
+    {
+        "label": "shell: smoke - album-viewer + album-api-v2",
+        "type": "shell",
+        "command": "node",
+        "args": ["scripts/smoke-album-app.mjs"],
+        "options": {
+            "cwd": "${workspaceFolder}"
+        },
+        "problemMatcher": []
+    },
+    {
+        "label": "shell: npm: dev - album-api-v2",
+        "type": "shell",
+        "command": "npm",
+        "args": ["run", "dev"],
+        "options": {
+            "cwd": "${workspaceFolder}/album-api-v2",
+            "env": {
+                "PORT": "3000"
+            }
+        },
+        "isBackground": true,
+        "problemMatcher": {
+            "pattern": {
+                "regexp": "^.*$",
+                "file": 1,
+                "location": 2,
+                "message": 3
+            },
+            "background": {
+                "activeOnStart": true,
+                "beginsPattern": "^.*$",
+                "endsPattern": "^album-api-v2 listening on port 3000$"
+            }
+        },
+        "group": "build"
+    },
+    {
         "label": "shell: npm: dev - album-viewer",
         "type": "shell",
         "command": "npm",

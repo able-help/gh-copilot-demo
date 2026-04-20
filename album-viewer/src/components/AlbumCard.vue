@@ -14,7 +14,7 @@
     
     <div class="album-info">
       <h3 class="album-title">{{ album.title }}</h3>
-      <p class="album-artist">{{ album.artist }}</p>
+      <p class="album-artist">{{ album.artist.name }}</p>
       <div class="album-price">
         <span class="price">${{ album.price.toFixed(2) }}</span>
       </div>

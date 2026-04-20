@@ -13,12 +13,16 @@ This repository has been inspired by the [Azure Container Apps: Dapr Albums Samp
 
 It's used as a code base to demonstrate Github Copilot capabilities.
 
-The solution is composed of two services: the .net album API and the NodeJS album viewer.
+The solution is composed of a frontend plus backend services: the .NET album API, the TypeScript `album-api-v2` rewrite, and the NodeJS album viewer.
 
 
-### Album API (`album-api`)
+### Album API V2 (`album-api-v2`)
 
-The [`album-api`](./album-api) is an .NET 8 minimal Web API that manage a list of Albums in memory.
+The [`album-api-v2`](./album-api-v2) is the primary local backend. It is a Node.js + TypeScript rewrite of the albums API, keeps the album collection in memory, starts on `http://localhost:3000` by default, and preserves the routes used by the Vue frontend: `GET /albums`, `GET /albums/{id}`, `POST /albums`, `PUT /albums/{id}`, `DELETE /albums/{id}`, plus `GET /albums/search` and `GET /albums/sorted`.
+
+### Legacy Album API (`album-api`)
+
+The [`album-api`](./album-api) is the original .NET 8 implementation kept in the repo for comparison and migration demos.
 
 ### Album Viewer (`album-viewer`)
 
@@ -55,17 +59,47 @@ This is the easiest way to run the solution with full debugging capabilities.
 4. Click the green play button or press F5
 
 This will automatically:
-- Build the .NET API and start it on `http://localhost:3000`
+- Start `album-api-v2` on `http://localhost:3000`
 - Start the Vue.js TypeScript app on `http://localhost:3001`
 - Open both services in your default browser
 
 You can also run individual services:
-- **"C#: Album API Debug"** - Runs only the .NET API
+- **"Node.js: Album API V2 Debug"** - Runs the TypeScript backend
 - **"Node.js: Album Viewer Debug"** - Runs only the Vue.js TypeScript frontend
+- **"All services (.NET)"** - Uses the legacy .NET backend instead of `album-api-v2`
 
 ### Option 2: Command Line
 
-#### Starting the Album API (.NET)
+#### Starting the Album API V2 (Node.js + TypeScript, recommended)
+
+```powershell
+# Navigate to the API directory
+cd album-api-v2
+
+# Restore dependencies (first time only)
+npm install
+
+# Run the API in watch mode
+npm run dev
+
+# Or build and run the compiled output
+npm run build
+npm run start
+```
+
+The API starts on `http://localhost:3000` by default.
+
+#### Smoke test the frontend-backend flow
+
+With `album-api-v2` running on port `3000` and the Vue dev server running on port `3001`, run:
+
+```bash
+node scripts/smoke-album-app.mjs
+```
+
+This checks that the Vue dev server is serving HTML and that `http://localhost:3001/albums` proxies through to the backend successfully.
+
+#### Starting the Album API (.NET legacy)
 
 ```powershell
 # Navigate to the API directory
@@ -116,12 +150,13 @@ npm run dev
 
 The solution uses the following default configuration:
 
-- **Album API**: Runs on `http://localhost:3000`
+- **Album API V2**: Runs on `http://localhost:3000`
 - **Album Viewer**: Runs on `http://localhost:3001` (TypeScript + Vue 3)
 - **API Endpoint**: The Vue app is configured to call the API at `localhost:3000`
 
 If you need to change these settings, you can modify:
-- API port: `albums-api/Properties/launchSettings.json`
+- API port for `album-api-v2`: `album-api-v2/src/server.ts` or the `PORT` environment variable
+- Legacy .NET API port: `albums-api/Properties/launchSettings.json`
 - Vue app configuration: Environment variables in `.vscode/launch.json` or set `VITE_ALBUM_API_HOST` environment variable
 
 ### Alternative: GitHub Codespaces

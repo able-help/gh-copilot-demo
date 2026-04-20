@@ -1,7 +1,0 @@
-
-> album-viewer@1.0.0 preview
-> vite preview --host 0.0.0.0
-
-[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
-  [32m➜[39m  [1mLocal[22m:   [36mhttp://localhost:[1m4173[22m/[39m
-  [32m➜[39m  [1mNetwork[22m: [36mhttp://10.1.0.169:[1m4173[22m/[39m

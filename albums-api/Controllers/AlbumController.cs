@@ -10,6 +10,7 @@ namespace albums_api.Controllers
 {
     [Route("albums")]
     [ApiController]
+
     public class AlbumController : ControllerBase
     {
         // GET: api/album

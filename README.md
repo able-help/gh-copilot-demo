@@ -127,3 +127,153 @@ If you need to change these settings, you can modify:
 ### Alternative: GitHub Codespaces
 
 The easiest way is to open this solution in a GitHub Codespace, or run it locally in a devcontainer. The development environment will be automatically configured for you.
+
+## Deploy To Azure
+
+Use the Bicep template in [iac/bicep/main.bicep](iac/bicep/main.bicep) to deploy both services to Azure Container Apps.
+
+### Prerequisites
+
+- [Azure CLI](https://learn.microsoft.com/cli/azure/install-azure-cli)
+- An Azure subscription where you can create resources
+
+### 1. Sign in and choose a subscription
+
+```bash
+az login
+az account set --subscription "<your-subscription-id-or-name>"
+```
+
+### 2. Set deployment variables
+
+```bash
+RESOURCE_GROUP="rg-albums-demo"
+LOCATION="eastus"
+ACR_NAME="acr$(openssl rand -hex 4)"
+API_IMAGE_NAME="albums-api"
+VIEWER_IMAGE_NAME="album-viewer"
+IMAGE_TAG="$(date +%Y%m%d%H%M%S)"
+```
+
+### 3. Create resource group and Azure Container Registry
+
+```bash
+az group create --name "$RESOURCE_GROUP" --location "$LOCATION"
+
+az acr create \
+	--resource-group "$RESOURCE_GROUP" \
+	--name "$ACR_NAME" \
+	--sku Standard \
+	--admin-enabled true
+```
+
+### 4. Build and push both images to ACR (no local Docker required)
+
+```bash
+az acr build \
+	--registry "$ACR_NAME" \
+	--image "$API_IMAGE_NAME:$IMAGE_TAG" \
+	--file albums-api/Dockerfile \
+	albums-api
+
+az acr build \
+	--registry "$ACR_NAME" \
+	--image "$VIEWER_IMAGE_NAME:$IMAGE_TAG" \
+	--file album-viewer/Dockerfile \
+	album-viewer
+```
+
+### 5. Deploy Azure Container Apps with Bicep
+
+```bash
+ACR_SERVER="$(az acr show -n "$ACR_NAME" -g "$RESOURCE_GROUP" --query loginServer -o tsv)"
+ACR_USERNAME="$(az acr credential show -n "$ACR_NAME" --query username -o tsv)"
+ACR_PASSWORD="$(az acr credential show -n "$ACR_NAME" --query passwords[0].value -o tsv)"
+
+az deployment group create \
+	--resource-group "$RESOURCE_GROUP" \
+	--template-file iac/bicep/main.bicep \
+	--parameters \
+		registryName="$ACR_SERVER" \
+		registryUsername="$ACR_USERNAME" \
+		registryPassword="$ACR_PASSWORD" \
+		apiImage="$ACR_SERVER/$API_IMAGE_NAME:$IMAGE_TAG" \
+		viewerImage="$ACR_SERVER/$VIEWER_IMAGE_NAME:$IMAGE_TAG"
+```
+
+### 6. Get application URLs
+
+```bash
+az containerapp show -g "$RESOURCE_GROUP" -n album-api --query properties.configuration.ingress.fqdn -o tsv
+az containerapp show -g "$RESOURCE_GROUP" -n album-viewer --query properties.configuration.ingress.fqdn -o tsv
+```
+
+Use the returned host names with `https://` in your browser.
+
+### Troubleshooting
+
+If deployment fails, check the following common issues.
+
+#### 1. ACR authentication or image pull failures
+
+- Ensure ACR admin credentials are enabled:
+
+```bash
+az acr update --name "$ACR_NAME" --admin-enabled true
+```
+
+- Re-read credentials before deployment:
+
+```bash
+ACR_USERNAME="$(az acr credential show -n "$ACR_NAME" --query username -o tsv)"
+ACR_PASSWORD="$(az acr credential show -n "$ACR_NAME" --query passwords[0].value -o tsv)"
+```
+
+- Confirm images exist in ACR:
+
+```bash
+az acr repository list --name "$ACR_NAME" -o table
+az acr repository show-tags --name "$ACR_NAME" --repository "$API_IMAGE_NAME" -o table
+```
+
+#### 2. Resource naming or regional availability issues
+
+- ACR names must be globally unique and use only lowercase letters and numbers.
+- If a region is capacity-constrained, retry with another location such as `westeurope` or `westus2`.
+
+#### 3. Missing provider registration
+
+If this is a new subscription, register required providers:
+
+```bash
+az provider register --namespace Microsoft.App
+az provider register --namespace Microsoft.OperationalInsights
+az provider register --namespace Microsoft.Insights
+az provider register --namespace Microsoft.Storage
+```
+
+#### 4. Inspect deployment and Container App status
+
+```bash
+az deployment group list -g "$RESOURCE_GROUP" -o table
+az deployment group show -g "$RESOURCE_GROUP" -n <deployment-name>
+
+az containerapp revision list -g "$RESOURCE_GROUP" -n album-api -o table
+az containerapp logs show -g "$RESOURCE_GROUP" -n album-api --follow
+```
+
+### Cleanup
+
+When you are done with the environment, remove the deployed Azure resources to avoid ongoing costs.
+
+```bash
+az group delete --name "$RESOURCE_GROUP" --yes --no-wait
+```
+
+Optional: monitor deletion status.
+
+```bash
+az group exists --name "$RESOURCE_GROUP"
+```
+
+If you created additional resource groups for this demo, repeat the same command for each group.

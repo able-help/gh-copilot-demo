@@ -41,7 +41,7 @@ import type { Album } from './types/album'
 const albums = ref<Album[]>([])
 const loading = ref<boolean>(true)
 const error = ref<string | null>(null)
-
+// Fetch albums from the API
 const fetchAlbums = async (): Promise<void> => {
   try {
     loading.value = true

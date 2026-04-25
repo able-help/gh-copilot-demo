@@ -12,7 +12,7 @@
     "smoke": "playwright test"
   },
   "dependencies": {
-    "axios": "^1.6.0",
+    "axios": "^1.15.0",
     "d3": "^7.9.0",
     "vue": "^3.4.0"
   },
